@@ -1,34 +1,31 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
+# Database connection string
 PSQL="psql --username=freecodecamp --dbname=periodic_table -t --no-align -c"
 
-if [[ -z $1 ]]; then
+# Check if argument is provided
+if [[ -z $1 ]]
+then
   echo "Please provide an element as an argument."
-  exit 0
+  exit
 fi
 
-INPUT="$1"
-
-if [[ $INPUT =~ ^[0-9]+$ ]]; then
-  CONDITION="e.atomic_number = $INPUT"
-elif [[ $INPUT =~ ^[A-Za-z]{1,2}$ ]]; then
-  CONDITION="e.symbol = INITCAP('$INPUT')"
+# Query database based on input type
+if [[ $1 =~ ^[0-9]+$ ]]
+then
+  # Input is a number (atomic number)
+  ELEMENT=$($PSQL "SELECT e.atomic_number, e.symbol, e.name, t.type, p.atomic_mass, p.melting_point_celsius, p.boiling_point_celsius FROM elements e JOIN properties p ON e.atomic_number = p.atomic_number JOIN types t ON p.type_id = t.type_id WHERE e.atomic_number = $1")
 else
-  CONDITION="e.name = INITCAP('$INPUT')"
+  # Input is a symbol or name
+  ELEMENT=$($PSQL "SELECT e.atomic_number, e.symbol, e.name, t.type, p.atomic_mass, p.melting_point_celsius, p.boiling_point_celsius FROM elements e JOIN properties p ON e.atomic_number = p.atomic_number JOIN types t ON p.type_id = t.type_id WHERE e.symbol = '$1' OR e.name = '$1'")
 fi
 
-RESULT=$($PSQL "
-  SELECT e.atomic_number, e.name, e.symbol, t.type, p.atomic_mass, p.melting_point_celsius, p.boiling_point_celsius
-  FROM elements e
-  JOIN properties p USING(atomic_number)
-  JOIN types t ON p.type_id = t.type_id
-  WHERE $CONDITION;
-")
-
-if [[ -z $RESULT ]]; then
+if [[ -z $ELEMENT ]]
+then
   echo "I could not find that element in the database."
-  exit 0
+else
+  echo "$ELEMENT" | while IFS="|" read ATOMIC_NUMBER SYMBOL NAME TYPE MASS MELTING BOILING
+  do
+    echo "The element with atomic number $ATOMIC_NUMBER is $NAME ($SYMBOL). It's a $TYPE, with a mass of $MASS amu. $NAME has a melting point of $MELTING celsius and a boiling point of $BOILING celsius."
+  done
 fi
-
-IFS='|' read -r AN NAME SYMBOL TYPE MASS MP BP <<< "$RESULT"
-echo "The element with atomic number $AN is $NAME ($SYMBOL). It's a $TYPE, with a mass of $MASS amu. $NAME has a melting point of $MP celsius and a boiling point of $BP celsius."
